@@ -59,7 +59,7 @@ func CreateEs(host string) *Elasticsearch {
 }
 
 //CreateIndex 创建索引
-func (e *Elasticsearch) CreateIndex() {
+func (e *Elasticsearch) CreateIndex(ctx context.Context) {
 	mapping := `{
 		"mappings":	{
 			"properties": {
@@ -72,60 +72,51 @@ func (e *Elasticsearch) CreateIndex() {
 			}
 		}
 	}`
-	//body := map[string]interface{}{
-	//	"mappings": map[string]interface{}{
-	//		"properties": map[string]interface{}{
-	//			"str": map[string]interface{}{
-	//				"type": "keyword", // 表示这个字段不分词
-	//			},
-	//		},
-	//	},
-	//}
 	req := esapi.IndicesCreateRequest{
 		Index: "test_index",
 		Body:  bytes.NewReader([]byte(mapping)),
 	}
 
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
 //查询，类似于mysql方式
-func (e *Elasticsearch) Query() {
+func (e *Elasticsearch) Query(ctx context.Context) {
 	query := map[string]interface{}{
-		"query": "select id,location from test_index order by id desc limit 2", //这里使用mysql的方式来请求，非常简单，符合开发习惯，简化es入门门槛，支持order，支持Limit，那么排序和分页就自己写好了
+		"query": "select id,location from test_index order by id desc limit 2", 
 	}
 	jsonBody, _ := json.Marshal(query)
 	req := esapi.SQLQueryRequest{Body: bytes.NewReader(jsonBody)}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
-func (e *Elasticsearch) DeleteIndex() {
+func (e *Elasticsearch) DeleteIndex(ctx context.Context) {
 	req := esapi.IndicesDeleteRequest{
 		Index: []string{"test_index"},
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
-func (e *Elasticsearch) InsertToEs() {
+func (e *Elasticsearch) InsertToEs(ctx context.Context) {
 	body := map[string]interface{}{
 		"id":       1,
 		"location": map[string]float64{"lat": 3.1415, "lon": 110.2567},
 	}
 	jsonBody, _ := json.Marshal(body)
 
-	req := esapi.CreateRequest{ // 如果是esapi.IndexRequest则是插入/替换
+	req := esapi.CreateRequest{
 		Index:      "test_index",
-		DocumentID: "test_1", //_id字段
+		DocumentID: "test_1",
 		Body:       bytes.NewReader(jsonBody),
 		Timeout:    5 * time.Second,
 	}
-	res, err := req.Do(context.Background(), e.Client)
+	res, err := req.Do(ctx, e.Client)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -134,7 +125,7 @@ func (e *Elasticsearch) InsertToEs() {
 
 }
 
-func (e *Elasticsearch) InsertBatch() {
+func (e *Elasticsearch) InsertBatch(ctx context.Context) {
 	var bodyBuf bytes.Buffer
 	for i := 2; i < 10; i++ {
 		createLine := map[string]interface{}{
@@ -159,55 +150,25 @@ func (e *Elasticsearch) InsertBatch() {
 	req := esapi.BulkRequest{
 		Body: &bodyBuf,
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
-func (e *Elasticsearch) SelectBySearch() {
-	//query := map[string]interface{}{
-	//	"query": map[string]interface{}{
-	//		"bool": map[string]interface{}{
-	//			"filter": map[string]interface{}{
-	//				"range": map[string]interface{}{
-	//					"id": map[string]interface{}{
-	//						"gt": 5,
-	//					},
-	//				},
-	//			},
-	//		},
-	//	},
-	//	"size": 0,
-	//	"aggs": map[string]interface{}{
-	//		"num": map[string]interface{}{
-	//			"terms": map[string]interface{}{
-	//				"field": "num",
-	//				//"size":  1,
-	//			},
-	//			"aggs": map[string]interface{}{
-	//				"max_v": map[string]interface{}{
-	//					"max": map[string]interface{}{
-	//						"field": "v",
-	//					},
-	//				},
-	//			},
-	//		},
-	//	},
-	//}
-	//jsonBody, _ := json.Marshal(query)
+func (e *Elasticsearch) SelectBySearch(ctx context.Context) {
 	query := `{"query" : {"bool" : {"must": [{"match_all" : {}}]}},"from" : 0,"size" : 2,"sort" : [{"id": "desc"}]}`
 
 	req := esapi.SearchRequest{
 		Index: []string{"test_index"},
 		Body:  bytes.NewReader([]byte(query)),
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
 //根据id修改
-func (e *Elasticsearch) UpdateSingle() {
+func (e *Elasticsearch) UpdateSingle(ctx context.Context) {
 	body := map[string]interface{}{
 		"doc": map[string]interface{}{
 			"location": map[string]float64{"lat": 3.5555, "lon": 110.66666},
@@ -219,13 +180,13 @@ func (e *Elasticsearch) UpdateSingle() {
 		DocumentID: "test_1",
 		Body:       bytes.NewReader(jsonBody),
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
 //根据条件修改
-func (e *Elasticsearch) UpdateByQuery() {
+func (e *Elasticsearch) UpdateByQuery(ctx context.Context) {
 	body := map[string]interface{}{
 		"script": map[string]interface{}{
 			"lang": "painless",
@@ -238,44 +199,38 @@ func (e *Elasticsearch) UpdateByQuery() {
 				"id":       10,
 			},
 		},
-		//"query": map[string]interface{}{
-		//	"match_all": map[string]interface{}{},
-		//}, //查询所有
-		"query": map[string]interface{}{"term": map[string]interface{}{"id": 1}}, //查询id为1的
+		"query": map[string]interface{}{"term": map[string]interface{}{"id": 1}}, 
 	}
 	jsonBody, _ := json.Marshal(body)
 	req := esapi.UpdateByQueryRequest{
 		Index: []string{"test_index"},
 		Body:  bytes.NewReader(jsonBody),
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
-func (e *Elasticsearch) DeleteSingle() {
+func (e *Elasticsearch) DeleteSingle(ctx context.Context) {
 	req := esapi.DeleteRequest{
 		Index:      "test_index",
 		DocumentID: "test_1",
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
 
-func (e *Elasticsearch) DeleteByQuery() {
+func (e *Elasticsearch) DeleteByQuery(ctx context.Context) {
 	body := map[string]interface{}{
-		//"query": map[string]interface{}{
-		//	"match_all": map[string]interface{}{},
-		//},
-		"query": map[string]interface{}{"term": map[string]interface{}{"id": 2}}, //查询id为2的
+		"query": map[string]interface{}{"term": map[string]interface{}{"id": 2}}, 
 	}
 	jsonBody, _ := json.Marshal(body)
 	req := esapi.DeleteByQueryRequest{
 		Index: []string{"test_index"},
 		Body:  bytes.NewReader(jsonBody),
 	}
-	res, _ := req.Do(context.Background(), e.Client)
+	res, _ := req.Do(ctx, e.Client)
 	defer res.Body.Close()
 	fmt.Println(res.String())
 }
